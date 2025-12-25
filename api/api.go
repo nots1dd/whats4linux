@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/lugvitc/whats4linux/internal/misc"
+	"github.com/lugvitc/whats4linux/internal/settings"
 	"github.com/lugvitc/whats4linux/internal/store"
 	"github.com/lugvitc/whats4linux/internal/wa"
 	"github.com/nyaruka/phonenumbers"
@@ -48,7 +49,7 @@ func New() *Api {
 // so we can call the runtime methods
 func (a *Api) Startup(ctx context.Context) {
 	a.ctx = ctx
-	dbLog := waLog.Stdout("Database", "ERROR", true)
+	dbLog := waLog.Stdout("Database", settings.GetLogLevel(), true)
 	var err error
 	a.cw, err = wa.NewContainerWrapper(ctx, "sqlite3", misc.GetSQLiteAddress("session.wa"), dbLog)
 	if err != nil {

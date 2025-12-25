@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 )
 
+const APP_NAME = "whats4linux"
+
 var ConfigDir = defaultConfigDir()
 
 func GetSQLiteAddress(dbName string) string {
@@ -18,7 +20,7 @@ func defaultConfigDir() string {
 	if err != nil {
 		panic(err)
 	}
-	cdr = filepath.Join(cdr, "whats4linux")
+	cdr = filepath.Join(cdr, APP_NAME)
 	if !dirExists(cdr) {
 		err = os.MkdirAll(cdr, os.ModePerm)
 		if err != nil {
