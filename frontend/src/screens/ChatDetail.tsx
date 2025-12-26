@@ -516,7 +516,7 @@ function MessageItem({ message, chatId, sentMediaCache }: { message: store.Messa
     const isImageOrVideo = !!(message.Content?.imageMessage || message.Content?.videoMessage);
     const timeStr = new Date(message.Info.Timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     var senderName = message.Info.PushName;
-    if (!message.Info.Sender.toString().endsWith("lid")) {
+    if (message.Info.Sender && !message.Info.Sender.toString().endsWith("lid")) {
         GetContact(message.Info.Sender).then((contact: any) => {
             senderName = contact.full_name || senderName || contact.jid;
         }).catch(() => {
