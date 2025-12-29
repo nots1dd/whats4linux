@@ -1,10 +1,11 @@
-import { useEffect } from "react"
+import { useEffect, useRef, useCallback } from "react"
 import { GetChatList } from "../../wailsjs/go/api/Api"
 import { api } from "../../wailsjs/go/models"
 import { EventsOn } from "../../wailsjs/runtime/runtime"
 import { ChatDetail } from "./ChatDetail"
 import { useChatStore } from "../store"
 import type { ChatItem } from "../store/types"
+
 export function ChatListScreen({ onOpenSettings }: { onOpenSettings: () => void }) {
   const {
     chats,
@@ -18,6 +19,9 @@ export function ChatListScreen({ onOpenSettings }: { onOpenSettings: () => void 
     clearUnreadCount,
   } = useChatStore()
 
+  const isFetchingRef = useRef(false)
+  const mountedRef = useRef(true)
+
   const handleChatSelect = (chat: any) => {
     selectChat(chat)
     clearUnreadCount(chat.id)
@@ -27,39 +31,81 @@ export function ChatListScreen({ onOpenSettings }: { onOpenSettings: () => void 
     selectChat(null)
   }
 
-  const fetchChats = () => {
-    GetChatList()
-      .then(chatElements => {
-        const items: ChatItem[] = (chatElements || []).map((c: api.ChatElement) => {
-          const isGroup = c.jid.endsWith("@g.us")
-          return {
-            id: c.jid,
-            name: c.full_name || c.push_name || c.short || c.jid,
-            subtitle: c.latest_message || "",
-            type: (isGroup ? "group" : "contact") as "group" | "contact",
-            avatar: c.avatar_url,
-          }
-        })
-        setChats(items)
+  const fetchChats = useCallback(async () => {
+    if (isFetchingRef.current) {
+      console.log("Already fetching chats, skipping...")
+      return
+    }
+
+    isFetchingRef.current = true
+    console.log("Fetching chats...")
+
+    try {
+      const chatElements = await GetChatList()
+
+      if (!mountedRef.current) {
+        console.log("Component unmounted, skipping update")
+        return
+      }
+
+      console.log("Chat elements received:", chatElements)
+
+      if (!chatElements || !Array.isArray(chatElements)) {
+        console.warn("No chat elements or not an array:", chatElements)
+        setChats([])
+        return
+      }
+
+      const items: ChatItem[] = chatElements.map((c: api.ChatElement) => {
+        const isGroup = c.jid?.endsWith("@g.us") || false
+        const chatItem = {
+          id: c.jid || "",
+          name: c.full_name || c.push_name || c.short || c.jid || "Unknown",
+          subtitle: c.latest_message || "",
+          type: (isGroup ? "group" : "contact") as "group" | "contact",
+          avatar: c.avatar_url || "",
+        }
+        console.log("Processed chat item:", chatItem)
+        return chatItem
       })
-      .catch(console.error)
-  }
+
+      console.log("Total chats processed:", items.length)
+      setChats(items)
+    } catch (err) {
+      console.error("Error fetching chats:", err)
+      if (mountedRef.current) {
+        setChats([])
+      }
+    } finally {
+      isFetchingRef.current = false
+    }
+  }, [setChats])
 
   useEffect(() => {
-    const unsub = EventsOn("wa:new_message", () => {
+    mountedRef.current = true
+
+    const timeout = setTimeout(() => {
       fetchChats()
+    }, 100)
+
+    const unsub = EventsOn("wa:new_message", () => {
+      console.log("New message event received")
+      // Debounce the fetch call
+      setTimeout(() => {
+        fetchChats()
+      }, 500)
     })
 
     return () => {
+      mountedRef.current = false
+      clearTimeout(timeout)
       unsub()
     }
-  }, [])
-
-  useEffect(() => {
-    fetchChats()
-  }, [])
+  }, [fetchChats])
 
   const filteredChats = chats.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()))
+
+  console.log("Rendering - Total chats:", chats.length, "Filtered:", filteredChats.length)
 
   return (
     <div className="flex h-screen bg-light-secondary dark:bg-black overflow-hidden">
@@ -77,12 +123,16 @@ export function ChatListScreen({ onOpenSettings }: { onOpenSettings: () => void 
             </svg>
           </div>
           <div className="flex gap-4 text-gray-500 dark:text-gray-400">
-            <button title="New Chat">
+            <button title="New Chat" className="hover:bg-gray-500 p-2 rounded-full">
               <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
                 <path d="M19.005 3.175H4.674C3.642 3.175 3 3.789 3 4.821V21.02l3.544-3.514h12.461c1.033 0 2.064-1.06 2.064-2.093V4.821c-.001-1.032-1.032-1.646-2.064-1.646zm-4.989 9.869H6.666V11.5h7.35v1.544zm3.35-4.135H6.666V7.36h10.7v1.55z"></path>
               </svg>
             </button>
-            <button title="Menu" onClick={onOpenSettings}>
+            <button
+              title="Menu"
+              onClick={onOpenSettings}
+              className="hover:bg-gray-500 p-2 rounded-full"
+            >
               <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
                 <path d="M12 7a2 2 0 1 0-.001-4.001A2 2 0 0 0 12 7zm0 2a2 2 0 1 0-.001 3.999A2 2 0 0 0 12 9zm0 6a2 2 0 1 0-.001 3.999A2 2 0 0 0 12 15z"></path>
               </svg>
@@ -114,44 +164,67 @@ export function ChatListScreen({ onOpenSettings }: { onOpenSettings: () => void 
 
         {/* Chat List */}
         <div className="flex-1 overflow-y-auto">
-          {filteredChats.map(chat => (
-            <div
-              key={chat.id}
-              onClick={() => handleChatSelect(chat)}
-              className={`flex items-center p-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-dark-tertiary ${
-                selectedChatId === chat.id ? "bg-gray-200 dark:bg-[#2a2a2a]" : ""
-              }`}
-            >
-              <div className="w-12 h-12 rounded-full bg-gray-300 dark:bg-gray-600 mr-4 shrink-0 overflow-hidden flex items-center justify-center">
-                {chat.avatar ? (
-                  <img src={chat.avatar} alt={chat.name} className="w-full h-full object-cover" />
-                ) : chat.type === "group" ? (
-                  <svg
-                    viewBox="0 0 24 24"
-                    width="24"
-                    height="24"
-                    fill="currentColor"
-                    className="text-white"
-                  >
-                    <path d="M12.001 10.5c2.486 0 4.5-2.015 4.5-4.5s-2.014-4.5-4.5-4.5-4.5 2.015-4.5 4.5 2.014 4.5 4.5 4.5zm5.5 1.5h-1.922c-1.074.65-2.325 1-3.578 1-1.253 0-2.504-.35-3.578-1H6.501c-2.481 0-4.5 2.018-4.5 4.5v.5h19v-.5c0-2.482-2.019-4.5-4.5-4.5z"></path>
-                  </svg>
-                ) : (
-                  <svg viewBox="0 0 48 48" className="w-full h-full text-white" fill="currentColor">
-                    <path d="M24 23q-1.857 0-3.178-1.322Q19.5 20.357 19.5 18.5t1.322-3.178T24 14t3.178 1.322Q28.5 16.643 28.5 18.5t-1.322 3.178T24 23m-6.75 10q-.928 0-1.59-.66-.66-.662-.66-1.59v-.9q0-.956.492-1.758A3.3 3.3 0 0 1 16.8 26.87a16.7 16.7 0 0 1 3.544-1.308q1.8-.435 3.656-.436 1.856 0 3.656.436T31.2 26.87q.816.422 1.308 1.223T33 29.85v.9q0 .928-.66 1.59-.662.66-1.59.66z" />
-                  </svg>
-                )}
-              </div>
-              <div className="flex-1 border-b border-gray-100 dark:border-gray-800 pb-3 min-w-0">
-                <div className="flex justify-between items-baseline mb-1">
-                  <h3 className="text-light-text dark:text-dark-text font-medium truncate">
-                    {chat.name}
-                  </h3>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">Yesterday</span>
-                </div>
-                <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{chat.subtitle}</p>
-              </div>
+          {filteredChats.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400 p-8">
+              <p className="text-center">
+                {chats.length === 0
+                  ? "No chats available. Start a conversation!"
+                  : "No chats match your search."}
+              </p>
+              <button
+                onClick={fetchChats}
+                className="mt-4 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
+                disabled={isFetchingRef.current}
+              >
+                {isFetchingRef.current ? "Loading..." : "Refresh Chats"}
+              </button>
             </div>
-          ))}
+          ) : (
+            filteredChats.map(chat => (
+              <div
+                key={chat.id}
+                onClick={() => handleChatSelect(chat)}
+                className={`flex items-center p-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-dark-tertiary ${
+                  selectedChatId === chat.id ? "bg-gray-200 dark:bg-[#2a2a2a]" : ""
+                }`}
+              >
+                <div className="w-12 h-12 rounded-full bg-gray-300 dark:bg-gray-600 mr-4 shrink-0 overflow-hidden flex items-center justify-center">
+                  {chat.avatar ? (
+                    <img src={chat.avatar} alt={chat.name} className="w-full h-full object-cover" />
+                  ) : chat.type === "group" ? (
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="24"
+                      height="24"
+                      fill="currentColor"
+                      className="text-white"
+                    >
+                      <path d="M12.001 10.5c2.486 0 4.5-2.015 4.5-4.5s-2.014-4.5-4.5-4.5-4.5 2.015-4.5 4.5 2.014 4.5 4.5 4.5zm5.5 1.5h-1.922c-1.074.65-2.325 1-3.578 1-1.253 0-2.504-.35-3.578-1H6.501c-2.481 0-4.5 2.018-4.5 4.5v.5h19v-.5c0-2.482-2.019-4.5-4.5-4.5z"></path>
+                    </svg>
+                  ) : (
+                    <svg
+                      viewBox="0 0 48 48"
+                      className="w-full h-full text-white"
+                      fill="currentColor"
+                    >
+                      <path d="M24 23q-1.857 0-3.178-1.322Q19.5 20.357 19.5 18.5t1.322-3.178T24 14t3.178 1.322Q28.5 16.643 28.5 18.5t-1.322 3.178T24 23m-6.75 10q-.928 0-1.59-.66-.66-.662-.66-1.59v-.9q0-.956.492-1.758A3.3 3.3 0 0 1 16.8 26.87a16.7 16.7 0 0 1 3.544-1.308q1.8-.435 3.656-.436 1.856 0 3.656.436T31.2 26.87q.816.422 1.308 1.223T33 29.85v.9q0 .928-.66 1.59-.662.66-1.59.66z" />
+                    </svg>
+                  )}
+                </div>
+                <div className="flex-1 border-b border-gray-100 dark:border-gray-800 pb-3 min-w-0">
+                  <div className="flex justify-between items-baseline mb-1">
+                    <h3 className="text-light-text dark:text-dark-text font-medium truncate">
+                      {chat.name}
+                    </h3>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">Yesterday</span>
+                  </div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                    {chat.subtitle}
+                  </p>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
 
