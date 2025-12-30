@@ -18,7 +18,8 @@ export function QuotedMessage({ contextInfo }: { contextInfo: any }) {
   if (!quoted) return null
 
   const getText = () => {
-    if (quoted.extendedTextMessage?.text) return parseWhatsAppMarkdown(quoted.extendedTextMessage.text)
+    if (quoted.extendedTextMessage?.text)
+      return parseWhatsAppMarkdown(quoted.extendedTextMessage.text)
     if (quoted.conversation) return parseWhatsAppMarkdown(quoted.conversation)
     if (quoted.imageMessage) return quoted.imageMessage.caption || "📷 Photo"
     if (quoted.videoMessage) return quoted.videoMessage.caption || "🎥 Video"

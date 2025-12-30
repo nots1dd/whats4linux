@@ -153,7 +153,13 @@ export function ChatDetail({ chatId, chatName, chatAvatar, onBack }: ChatDetailP
       Content: imageToSend
         ? { imageMessage: { caption: textToSend, _tempImage: imageToSend, contextInfo } }
         : fileToSend
-          ? { [`${fileTypeToSend}Message`]: { caption: textToSend, _tempFile: fileToSend, contextInfo } }
+          ? {
+              [`${fileTypeToSend}Message`]: {
+                caption: textToSend,
+                _tempFile: fileToSend,
+                contextInfo,
+              },
+            }
           : replyingTo
             ? { extendedTextMessage: { text: textToSend, contextInfo } }
             : { conversation: textToSend },
