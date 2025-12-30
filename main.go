@@ -5,6 +5,7 @@ import (
 
 	apiPkg "github.com/lugvitc/whats4linux/api"
 	"github.com/lugvitc/whats4linux/internal/misc"
+	"github.com/lugvitc/whats4linux/internal/store"
 	"github.com/lugvitc/whats4linux/internal/utils/lockfile"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -15,9 +16,11 @@ import (
 var assets embed.FS
 
 func main() {
-
 	lock := lockfile.EnsureSingleInstance(misc.APP_LOCK_FILE)
 	defer lock.Release()
+
+	store.LoadSettings()
+	defer store.CloseSettings()
 
 	// Create an instance of the app structure
 	api := apiPkg.New()

@@ -614,9 +614,9 @@ func (a *Api) SendChatPresence(jid string, cp types.ChatPresence, cpm types.Chat
 }
 
 func (a *Api) SaveSettings(s map[string]any) {
-	// todo: implement settings save
+	store.SaveSettings(s)
 }
 
 func (a *Api) GetSettings() map[string]any {
-	return make(map[string]any)
+	return store.GetSettings()
 }
