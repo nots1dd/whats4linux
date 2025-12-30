@@ -7,8 +7,8 @@ import (
 	"log"
 	"sort"
 
-	"github.com/lugvitc/whats4linux/internal/misc"
 	"github.com/lugvitc/whats4linux/internal/db"
+	"github.com/lugvitc/whats4linux/internal/misc"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
